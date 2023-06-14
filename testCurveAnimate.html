@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">			
+		<title>Betila Lima</title>
+		<meta name="author" content="funilariadigital">
+		<link rel="apple-touch-icon" sizes="180x180" href="./media/img/favicon/apple-touch-icon.png">
+		<link rel="icon" type="image/png" sizes="32x32" href="./media/img/favicon/favicon-32x32.png">
+		<link rel="icon" type="image/png" sizes="16x16" href="./media/img/favicon/favicon-16x16.png">
+		<link rel="manifest" href="./media/img/favicon/site.webmanifest">
+		
+		<style>
+			#menu {
+				position: absolute;
+				bottom: 20px;
+				width: 100%;
+				text-align: center;
+			}
+			button {
+				color: rgba(127,255,255,0.75);
+				background: transparent;
+				outline: 1px solid rgba(127,255,255,0.75);
+				border: 0px;
+				padding: 5px 10px;
+				cursor: pointer;
+			}
+
+			button:hover {
+				background-color: rgba(0,255,255,0.5);
+			}
+
+			button:active {
+				color: #000000;
+				background-color: rgba(0,255,255,0.75);
+			}
+		</style>
+
+	</head>
+	<body>
+		<div style="position: absolute, top: 22rem" id="container"></div>
+		<div id="menu">
+			<button id="in">fadeInCurve</button>
+			<button id="out">fadeOutCurve</button>
+		</div>
+		<!-- Import maps polyfill -->
+		<!-- Remove this when import maps will be widely supported -->
+		<script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "./static/js/build/three.module.js",
+					"three/addons/": "./static/js/jsm/"
+				}
+			}
+		</script>
+		<script type="module">
+			import * as THREE from 'three';
+			import Stats from 'three/addons/libs/stats.module.js';
+			import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+			import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+			
+			import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+			import { Wireframe } from 'three/addons/lines/Wireframe.js';
+			import { WireframeGeometry2 } from 'three/addons/lines/WireframeGeometry2.js';
+			
+			import { Line2 } from 'three/addons/lines/Line2.js';
+			import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+			
+			import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
+			
+			import TWEEN from 'three/addons/libs/tween.module.js';
+
+			let scene, renderer, cssRenderer, raycaster, camera, controls, stats, model, curveSrc, infoBox, line, xPos, yPos, zPos, objectCSS, point, points, lineGeo, lineSpline;	
+			const raycastMeshes = [];
+			let intersects, pointIntersect, currentIntersected;
+					
+			const matLine = new LineMaterial( {
+				color: 0x40e0d0,
+				linewidth: 2,
+				transparent: true,
+				opacity: 0.4,
+				vertexColors: false,
+				dashed: false,
+				clipShadows: true,
+				alphaToCoverage: false,
+				} );
+
+			const buttonIn = document.getElementById( 'in' );
+				buttonIn.addEventListener( 'click', function () {
+				fadeInCurve();
+				} );
+			const buttonOut = document.getElementById( 'out' );
+				buttonOut.addEventListener( 'click', function () {
+				fadeOutCurve();
+				} );
+				
+			let curveDivisions = 100;
+			let curveAnchors = 4;
+			let duration = 600;
+
+			init();
+			function init() {
+				const container = document.getElementById( 'container' );
+				buildStage();
+				buildHandlers();
+				stats = new Stats();
+				container.appendChild( stats.dom );
+				window.addEventListener( 'resize', onWindowResize );			
+				animate();
+			}
+			function buildStage(){
+				scene = new THREE.Scene();
+				scene.background = new THREE.Color( 0x000000 );				
+				renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.shadowMap.enabled = false;
+				renderer.domElement.style.position = 'absolute';
+				renderer.domElement.style.top = 0;
+				container.appendChild( renderer.domElement );
+				camera = new THREE.PerspectiveCamera( 40, window.innerWidth / window.innerHeight, 1, 100 );
+				camera.position.set( 2, 4, 1 );	
+				controls = new OrbitControls( camera, renderer.domElement ); //renderer.domElement
+
+				controls.rotateSpeed = 0.1;
+				controls.target =  new THREE.Vector3( 0, 0.3, 0 );		
+				controls.maxPolarAngle = 1.76;	
+				controls.minPolarAngle = 1.3;	
+				controls.enableDamping = true;				
+				controls.dampingFactor = 1.2;				
+			}			
+			function buildHandlers(){
+				point = new THREE.Vector3();
+				points = [new THREE.Vector3( -2, -1, 0 ), new THREE.Vector3( -1, 1, 0 ), new THREE.Vector3( 0, -1, 0 ), new THREE.Vector3( 2, 1, 0 )];	
+				lineGeo = new LineGeometry();	
+				lineSpline = new THREE.CatmullRomCurve3( points );
+				lineSpline.curveType = 'chordal';
+								
+				lineGeo.setPositions( updateCurve(lineSpline) );
+				line = new Line2( lineGeo, matLine );
+				line.computeLineDistances();
+				line.scale.set( 1, 1, 1 );
+				scene.add( line );
+			}
+			function fadeInCurve(){
+				TWEEN.removeAll();
+				let points = updateCurve(lineSpline);
+				let arrayItemsQtd = points.length/3; //points array Vector3 only
+				let elapsed, iteration, arraySlice;
+				let fadeIn = new TWEEN.Tween()
+					.to(  {} , duration )
+					.easing( TWEEN.Easing.Exponential.Out )
+					.onUpdate( () => 
+						{	
+							elapsed = Math.ceil(TWEEN.now() - fadeIn._startTime);
+							iteration = Math.ceil(arrayItemsQtd/duration * elapsed  );
+							if(elapsed >= duration){
+								lineGeo.setPositions( points.slice(0, points.length) );
+								fadeIn.stop();
+								return;
+							}
+							arraySlice = points.slice(0, iteration*3);
+
+							if(arraySlice.length >= points.length){
+								fadeIn.stop();
+								return;
+							}
+							lineGeo.setPositions( arraySlice );
+						})
+					.start();
+			}
+			function fadeOutCurve(){
+				TWEEN.removeAll();
+				let points = updateCurve(lineSpline);
+				let arrayItemsQtd = points.length/3; //points array Vector3 only
+				let elapsed, iteration, arraySlice;
+				let fadeOut = new TWEEN.Tween()
+					.to(  {} , duration )
+					.easing( TWEEN.Easing.Exponential.Out )
+					.onUpdate( () => 
+						{	
+							
+							elapsed = Math.ceil(TWEEN.now() - fadeOut._startTime);
+							iteration = Math.ceil(arrayItemsQtd/duration * elapsed  );
+							if(elapsed >= duration){
+								lineGeo.setPositions( points.slice(-3) );
+								fadeOut.stop();
+								return;
+							}
+							arraySlice = points.slice(iteration*3, points.length);
+							if(arraySlice.length <= 0){
+								fadeOut.stop();
+								return;
+							}
+							lineGeo.setPositions( arraySlice );
+						})
+					.start();
+			}
+			function updateCurve(lineSpline){
+				let divisions = Math.round( curveDivisions * curveAnchors );
+				let linePoints = [];
+				for ( let i = 0, l = divisions; i < l; i ++ ) {
+					const t = i / l;
+					lineSpline.getPoint( t, point );
+					linePoints.push( point.x, point.y, point.z );
+				}
+				return linePoints;				
+			}
+			function render(){
+				matLine.resolution.set( window.innerWidth, window.innerHeight );
+				renderer.render( scene, camera );
+			}
+			function onWindowResize() {
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize( window.innerWidth, window.innerHeight );
+			}
+			function animate() {
+				requestAnimationFrame( animate );
+				controls.update();
+				TWEEN.update();
+				render();
+				stats.update();				
+			}
+
+		</script>
+	</body>
+</html>

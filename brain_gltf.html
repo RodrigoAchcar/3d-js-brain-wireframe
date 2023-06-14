@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">			
+		<title>Betila Lima</title>
+		<meta name="author" content="funilariadigital">
+		<link rel="apple-touch-icon" sizes="180x180" href="./media/img/favicon/apple-touch-icon.png">
+		<link rel="icon" type="image/png" sizes="32x32" href="./media/img/favicon/favicon-32x32.png">
+		<link rel="icon" type="image/png" sizes="16x16" href="./media/img/favicon/favicon-16x16.png">
+		<link rel="manifest" href="./media/img/favicon/site.webmanifest">
+
+		<link rel="stylesheet" href="./static/css/layout.css">
+	</head>
+	<body>
+		<div id="container"></div>
+		<div class="invisible">
+			<div id="brainR-parietal" class="element">
+				<div class="topic">Lobo Parietal Direito</div>
+				<div class="details">Descrição da área Lobo Parietal Direito e suas Influências</div>
+			</div>
+			<div id="brainR-frontal" class="element">
+				<div class="topic">Lobo Frontal Direito</div>
+				<div class="details">Descrição da área Lobo Frontal Direito e suas Influências</div>
+			</div>
+			<div id="brainR-temporal" class="element">
+				<div class="topic">Lobo Temporal Direito</div>
+				<div class="details">Descrição da área Lobo Temporal Direito e suas Influências</div>
+			</div>
+			<div id="brainR-occipital" class="element">
+				<div class="topic">Lobo Occipital Direito</div>
+				<div class="details">Descrição da área Lobo Occipital Direito e suas Influências</div>
+			</div>			
+			<div id="brainL-parietal" class="element">
+				<div class="topic">Lobo Parietal Esquerdo</div>
+				<div class="details">Descrição da área Lobo Parietal Esquerdo e suas Influências</div>
+			</div>
+			<div id="brainL-frontal" class="element">
+				<div class="topic">Lobo Frontal Esquerdo</div>
+				<div class="details">Descrição da área Lobo Frontal Esquerdo e suas Influências</div>
+			</div>
+			<div id="brainL-temporal" class="element">
+				<div class="topic">Lobo Temporal Esquerdo</div>
+				<div class="details">Descrição da área Lobo Temporal Esquerdo e suas Influências</div>
+			</div>
+			<div id="brainL-occipital" class="element">
+				<div class="topic">Lobo Occipital Esquerdo</div>
+				<div class="details">Descrição da área Lobo Occipital Esquerdo e suas Influências</div>
+			</div>
+		</div>
+		<!-- Import maps polyfill -->
+		<!-- Remove this when import maps will be widely supported -->
+		<script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "./static/js/build/three.module.js",
+					"three/addons/": "./static/js/jsm/"
+				}
+			}
+		</script>
+		<script type="module">
+			import * as THREE from 'three';
+			import Stats from 'three/addons/libs/stats.module.js';
+			import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+			import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+			
+			import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+			import { Wireframe } from 'three/addons/lines/Wireframe.js';
+			import { WireframeGeometry2 } from 'three/addons/lines/WireframeGeometry2.js';
+			
+			import { Line2 } from 'three/addons/lines/Line2.js';
+			import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+			
+			import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
+			
+			import TWEEN from 'three/addons/libs/tween.module.js';
+
+			let scene, renderer, cssRenderer, raycaster, camera, controls, stats, model, curveSrc, infoBox, line, objectCSS, point, points, lineGeo, lineSpline;	
+			let xPos, yPos, zPos, headPos, midHeadPos, midTailPos, tailPos;
+			const raycastMeshes = [];
+			let intersects, pointIntersect, currentIntersected;
+			let tweenIdle = true;
+			let arraySlice = [];
+					
+			const matLine = new LineMaterial( {
+				color: 0x40e0d0,
+				linewidth: 2,
+				transparent: true,
+				opacity: 0.3,
+				vertexColors: false,
+				dashed: false,
+				clipShadows: false,
+				alphaToCoverage: true,
+				} );
+				//matLine.vertexShader may glow	keeping performance			
+			init();
+			function init() {
+				const container = document.getElementById( 'container' );
+				buildStage();
+				buildHandlers();
+	
+				stats = new Stats();
+				container.appendChild( stats.dom );
+				window.addEventListener( 'resize', onWindowResize );			
+				animate();
+			}
+			function buildStage(){
+				scene = new THREE.Scene();
+				scene.background = new THREE.Color( 0x000000 );				
+				renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.shadowMap.enabled = false;
+				renderer.domElement.style.position = 'absolute';
+				renderer.domElement.style.top = 0;
+				container.appendChild( renderer.domElement );				
+				cssRenderer = new CSS3DRenderer({ antialias: true, alpha: true });
+				cssRenderer.setSize( window.innerWidth, window.innerHeight );
+				cssRenderer.domElement.style.position = 'absolute';
+				cssRenderer.domElement.style.top = 0;
+				container.appendChild( cssRenderer.domElement );							
+				raycaster = new THREE.Raycaster();
+				camera = new THREE.PerspectiveCamera( 40, window.innerWidth / window.innerHeight, 1, 100 );
+				camera.position.set( 4, 0.8, 3 );	
+				controls = new OrbitControls( camera, cssRenderer.domElement ); 
+				controls.autoRotate = true;		
+				controls.autoRotateSpeed = -1;
+				controls.rotateSpeed = 0.1;
+				controls.target =  new THREE.Vector3( 0, 0.1, 0 );		
+				controls.maxPolarAngle = 1.76;	
+				controls.minPolarAngle = 1.3;	
+				controls.enableDamping = true;				
+				controls.dampingFactor = 1.2;				
+			}			
+			function buildHandlers(){				
+				const loader = new GLTFLoader();
+				let raycastedMesh = new THREE.MeshBasicMaterial( { color: 0x000000} );
+				loader.load( './static/js/models/gltf/Brain/Brain.glb', 
+					( gltf ) => {					 
+						model = gltf.scene;
+						model.traverse( function ( object ) {
+							if ( object.isMesh ) {	
+								if(object.userData.name !== 'brain-wireframe'){
+									let mesh = new THREE.Mesh(object.geometry, raycastedMesh);
+									mesh.name = object.userData.name;
+									raycastMeshes.push(mesh);
+									//scene.add(mesh); // NO NEED TO SCENE.ADD NON-VISIBLE RAYCASTING OBJS
+								}									
+								if(object.userData.name == 'brain-wireframe'){		
+									let wireMeshGeo = new WireframeGeometry2( object.geometry );
+									let wireframeMesh = new Wireframe( wireMeshGeo, matLine );
+									wireframeMesh.computeLineDistances();
+									wireframeMesh.scale.set( 1, 1, 1 );
+									scene.add( wireframeMesh );			
+								}
+							}
+						} );					
+					}
+				);
+				point = new THREE.Vector3(0,0,0);
+				points = [point,point,point,point];	
+				lineGeo = new LineGeometry();	
+				lineSpline = new THREE.CatmullRomCurve3( points );
+				lineSpline.curveType = 'chordal';				
+				lineGeo.setPositions( updateCurve(lineSpline) );
+				line = new Line2( lineGeo, matLine );
+				line.computeLineDistances();
+				line.scale.set( 1, 1, 1 );
+				scene.add( line );				
+			
+				let sphereGeo = new THREE.SphereGeometry( 0.01 );
+				let sphereMat = new THREE.MeshBasicMaterial( { color: 0x40e0d0, transparent: true, opacity: 0 } );
+				curveSrc = new THREE.Mesh( sphereGeo, sphereMat );
+
+				scene.add( curveSrc );
+				const element = document.createElement( 'div' );
+				element.className = 'element';
+				element.style.backgroundColor = 'rgba(0,127,127,0.25)';
+				const topic = document.createElement( 'div' );
+				topic.className = 'topic';
+				element.appendChild( topic );
+				const details = document.createElement( 'div' );
+				details.className = 'details';
+				element.appendChild( details );
+				objectCSS = new CSS3DObject( element );
+				objectCSS.scale.x = objectCSS.scale.y = objectCSS.scale.z = 0.001;
+				objectCSS.element.style.opacity = 0;
+				scene.add( objectCSS );
+			}
+			function updateCurve(lineSpline){
+				let divisions = Math.round( 120 * points.length );
+				let linePoints = [];
+				for ( let i = 0, l = divisions; i < l; i ++ ) {
+					const t = i / l;
+					lineSpline.getPoint( t, point );
+					linePoints.push( point.x, point.y, point.z );
+				}				
+				return linePoints;
+			}
+			function trigger(selectedObj, duration, onStartFunction, onCompleteFunction){
+				setTweenIdle(false);
+				//Start Tween chain
+				let inMesh = fadeOpacity(curveSrc, 1, 400);	
+				let inCurve = fadeCurve('in', 800);
+				let inCss = fadeOpacity(objectCSS, 1, 400);	
+				inCurve.onStart( () => { onStartFunction(selectedObj); });
+				inCss.onComplete( () => { setTweenIdle(true); });
+				inCurve.chain(inCss);
+				inCurve.start();
+				inMesh.start();
+			}
+			function untrigger(selectedObj, duration, onStartFunction, onCompleteFunction){
+				setTweenIdle(false);
+				//Start Tween chain
+				let outCurve = fadeCurve('out', 800);
+				let outCss = fadeOpacity(objectCSS, 0, 400);
+				let inCurve = fadeCurve('in', 800);
+				let inCss = fadeOpacity(objectCSS, 1, 400);	
+				inCurve.onStart( () => {onStartFunction(selectedObj)} );
+				inCss.onComplete( () => { setTweenIdle(true); } );
+				outCurve.chain(outCss);
+				outCss.chain(inCurve);
+				inCurve.chain(inCss);
+				outCurve.start();
+			}
+			function notrigger(duration, onStartFunction, onCompleteFunction){
+				setTweenIdle(false);
+				//Start Tween chain
+				let outMesh = fadeOpacity(curveSrc, 0, 400);	
+				let outCurve = fadeCurve('out', 800);
+				let outCss = fadeOpacity(objectCSS, 0, 400);
+				outCss.onComplete( () => { setTweenIdle(true); });
+				outCurve.chain(outCss);
+				outCss.start();
+				outMesh.start();
+			}
+			function fadeCurve(direction, duration, onStartFunction, onCompleteFunction){
+				let tween = new TWEEN.Tween()
+					.to(  {} , duration )
+					.easing( TWEEN.Easing.Exponential.Out )
+					.onUpdate( () => 
+					{
+						let updatedCurve = updateCurve(lineSpline);
+						let elapsed = Math.ceil(TWEEN.now() - tween._startTime);
+						let iteration = Math.ceil((updatedCurve.length/3)/duration * elapsed  );
+						if(elapsed >= duration || arraySlice.length < 0){
+							return;
+						}
+						if(direction == 'in'){	
+							arraySlice = updatedCurve.slice(0, iteration*3);
+							lineGeo.setPositions( arraySlice );
+						}
+						if(direction == 'out'){
+							arraySlice = updatedCurve.slice(iteration*3, updatedCurve.length);
+							lineGeo.setPositions( arraySlice );
+						}
+					});
+				return tween;
+			}
+			function fadeOpacity(obj, value, duration, onStartFunction, onCompleteFunction){
+				let tween;
+				if(obj.isCSS3DObject){
+					tween = new TWEEN.Tween( obj.element.style )
+					.to( { opacity: value }, duration );
+				}
+				if(obj.isMesh){
+					tween = new TWEEN.Tween( obj.material )
+					.to( { opacity: value }, duration );
+				}
+				tween.easing( TWEEN.Easing.Quadratic.In );
+				tween.onUpdate( () => {
+					if(value == 1){
+						lineGeo.setPositions( updateCurve(lineSpline) );
+					}
+					if(value == 0){ lineGeo.setPositions( tailPos ); }
+				});
+				return tween;			
+			}
+			function render(){
+				matLine.resolution.set( window.innerWidth, window.innerHeight );				
+				xPos = camera.position.x;
+				yPos = camera.position.y;
+				zPos = camera.position.z;
+				midHeadPos = new THREE.Vector3( xPos/8, yPos*1.2, zPos/10 );
+				midTailPos = new THREE.Vector3( xPos/3, yPos/3, zPos/4 );
+				tailPos = new THREE.Vector3(xPos/1.5, yPos/1.4, zPos/1.8 );	
+				// find intersections
+				pointIntersect = new THREE.Vector2( 0, yPos/4 );
+				raycaster.setFromCamera( pointIntersect, camera );
+				intersects = raycaster.intersectObjects( raycastMeshes, false );
+
+				objectCSS.position.copy( tailPos );				
+				objectCSS.rotation.x = camera.rotation.x;
+				objectCSS.rotation.y = camera.rotation.y;
+				objectCSS.rotation.z = camera.rotation.z;				
+
+				if ( intersects.length > 0 ) {	
+					//intersected
+					let intersected = intersects[ 0 ];
+					headPos	= intersected.point;
+					curveSrc.position.copy( headPos);
+					lineSpline.points = [ headPos, midHeadPos, midTailPos, tailPos ];
+					if(tweenIdle == true){
+						TWEEN.removeAll();
+						if(currentIntersected == null){
+							currentIntersected = intersected;
+							trigger(currentIntersected.object, 1000, setCssElmInfo, null);
+						
+						}
+						if(currentIntersected.object.name != intersected.object.name){
+							//new current	
+							currentIntersected = intersected;
+							untrigger(currentIntersected.object, 2000, setCssElmInfo, null );
+
+						}	
+						if(currentIntersected.object.name == intersected.object.name){
+							lineGeo.setPositions( updateCurve(lineSpline) );
+						}							
+					}
+				}else {				
+					if(tweenIdle == true){
+						if(currentIntersected == null){
+						
+						}
+						if(currentIntersected != null){
+							notrigger(1000, null, null);
+							currentIntersected = null;
+						}
+					}
+				}
+				TWEEN.update();
+				renderer.render( scene, camera );
+				cssRenderer.render( scene, camera );
+			}
+			function setCssElmInfo(currentIntersected){
+				let elementByName = document.getElementById(currentIntersected.name);
+				objectCSS.element.children[0].textContent = elementByName.children[0].textContent;
+				objectCSS.element.children[1].textContent = elementByName.children[1].textContent;		
+			}
+			function setTweenIdle(bool){
+				tweenIdle = bool;				
+			}
+			function onWindowResize() {
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				cssRenderer.setSize( window.innerWidth, window.innerHeight );
+			}
+			function animate() {
+				requestAnimationFrame( animate );				
+				controls.update();
+				render();
+				stats.update();				
+			}
+		</script>
+	</body>
+</html>
